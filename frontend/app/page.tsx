@@ -1,22 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Container from '@/components/Layout/Container';
 import FileUpload from '@/components/Upload/FileUpload';
-import { uploadFile } from '@/lib/api';
+import ProgressBar from '@/components/Progress/ProgressBar';
+import { uploadFile, getDownloadUrl } from '@/lib/api';
 import { validateFile } from '@/utils/validation';
 import { ERROR_MESSAGES } from '@/utils/constants';
-import { JobResponse } from '@/types';
+import { JobResponse, JobStatus } from '@/types';
+import { useJobStatus } from '@/hooks/useJobStatus';
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('');
-  const [progress, setProgress] = useState<number>(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  // Use polling hook for job status
+  const { status, progress, error: pollingError, result, isPolling } = useJobStatus(jobId);
+
+  // Handle job completion
+  useEffect(() => {
+    if (status === 'completed' && result && jobId) {
+      // Set download URL when job completes
+      setDownloadUrl(getDownloadUrl(jobId));
+      setError(null);
+    } else if (status === 'failed') {
+      // Handle job failure
+      if (pollingError) {
+        setError(pollingError);
+      }
+    }
+  }, [status, result, jobId, pollingError]);
+
+  // Combine upload errors with polling errors
+  useEffect(() => {
+    if (pollingError && status !== 'completed') {
+      setError(pollingError);
+    }
+  }, [pollingError, status]);
 
   const handleFileSelect = (selectedFile: File | null) => {
     setFile(selectedFile);
@@ -25,8 +49,6 @@ export default function Home() {
     // Reset job-related state when new file is selected
     if (selectedFile === null) {
       setJobId(null);
-      setStatus('');
-      setProgress(0);
       setDownloadUrl(null);
     }
   };
@@ -47,18 +69,14 @@ export default function Home() {
     setIsUploading(true);
     setError(null);
     setUploadSuccess(false);
+    setDownloadUrl(null);
 
     try {
       const response: JobResponse = await uploadFile(file);
       
       // Store job information
       setJobId(response.jobId);
-      setStatus('queued');
-      setProgress(0);
       setUploadSuccess(true);
-      
-      // Clear file selection after successful upload
-      // Keep it visible for now, user can see what was uploaded
       
     } catch (err: unknown) {
       // Handle different error types
@@ -70,8 +88,6 @@ export default function Home() {
       
       // Reset job state on error
       setJobId(null);
-      setStatus('');
-      setProgress(0);
     } finally {
       setIsUploading(false);
     }
@@ -94,7 +110,7 @@ export default function Home() {
             selectedFile={file}
             disabled={isUploading || !!jobId}
             isUploading={isUploading}
-            error={error && !isUploading ? error : null}
+            error={error && !isUploading && !jobId ? error : null}
           />
 
           <button
@@ -134,7 +150,7 @@ export default function Home() {
           {uploadSuccess && jobId && (
             <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
               <p className="text-sm text-green-800 dark:text-green-200">
-                ✓ File uploaded successfully! Job ID: {jobId}
+                ✓ File uploaded successfully! Processing started...
               </p>
             </div>
           )}
@@ -147,27 +163,40 @@ export default function Home() {
               Processing Status
             </h2>
             
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Status: {status || 'Queued'}</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                <div
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
+            <ProgressBar progress={progress} status={status as JobStatus} />
             
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Your file is being processed. This may take a few minutes...
-            </p>
+            <div className="mt-4">
+              {status === 'queued' && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Your file is queued and will start processing shortly...
+                </p>
+              )}
+              {status === 'active' && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Your file is being processed. This may take a few minutes...
+                </p>
+              )}
+              {status === 'completed' && (
+                <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                  ✓ Processing completed successfully!
+                </p>
+              )}
+              {status === 'failed' && (
+                <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                  ✗ Processing failed. Please try again.
+                </p>
+              )}
+              {isPolling && status !== 'completed' && status !== 'failed' && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                  Checking status...
+                </p>
+              )}
+            </div>
           </div>
         )}
 
         {/* Download Section */}
-        {downloadUrl && (
+        {downloadUrl && status === 'completed' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
               Download Result
@@ -175,10 +204,28 @@ export default function Home() {
             <a
               href={downloadUrl}
               download="vocals.mp3"
-              className="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors"
+              className="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors flex items-center justify-center gap-2"
             >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
               Download Isolated Vocals
             </a>
+            {result?.output && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 text-center">
+                File size: {Math.round((result.output.size || 0) / 1024 / 1024 * 100) / 100} MB
+              </p>
+            )}
           </div>
         )}
 
