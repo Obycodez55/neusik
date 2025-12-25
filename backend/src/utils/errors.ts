@@ -46,6 +46,24 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class RateLimitError extends AppError {
+  constructor(message: string = 'Too many requests, please try again later', details?: Record<string, unknown>) {
+    super(message, 'RATE_LIMIT_EXCEEDED', 429, details);
+  }
+}
+
+export class TimeoutError extends AppError {
+  constructor(message: string = 'Request timeout', details?: Record<string, unknown>) {
+    super(message, 'TIMEOUT_ERROR', 408, details);
+  }
+}
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string = 'Service temporarily unavailable', details?: Record<string, unknown>) {
+    super(message, 'SERVICE_UNAVAILABLE', 503, details);
+  }
+}
+
 /**
  * Format error response for API
  */
@@ -89,6 +107,7 @@ export function getStatusCode(error: unknown): number {
 
 /**
  * Log error with context
+ * Uses structured logging for better error tracking
  */
 export function logError(error: unknown, context?: Record<string, unknown>): void {
   if (error instanceof AppError) {
@@ -96,14 +115,19 @@ export function logError(error: unknown, context?: Record<string, unknown>): voi
       statusCode: error.statusCode,
       details: error.details,
       context,
+      timestamp: new Date().toISOString(),
     });
   } else if (error instanceof Error) {
     console.error('Error:', error.message, {
       stack: error.stack,
       context,
+      timestamp: new Date().toISOString(),
     });
   } else {
-    console.error('Unknown error:', error, { context });
+    console.error('Unknown error:', error, { 
+      context,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
 

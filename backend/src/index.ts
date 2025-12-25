@@ -11,6 +11,7 @@ import { formatErrorResponse, getStatusCode, logError } from './utils/errors';
 import { ensureDirectoryExists } from './utils/storage';
 import { testRedisConnection, redis } from './utils/redis';
 import { getQueueStats } from './services/queue';
+import { apiLimiter, uploadLimiter, statusLimiter } from './middleware/rateLimit';
 // Import queue service to initialize worker
 import './services/queue';
 
@@ -43,6 +44,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply general API rate limiting
+app.use('/api', apiLimiter);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {

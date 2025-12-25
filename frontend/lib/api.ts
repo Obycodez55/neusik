@@ -4,6 +4,7 @@
 
 import axios, { AxiosError } from 'axios';
 import { JobResponse, JobStatusResponse, ApiError } from '@/types';
+import { ERROR_CODE_MESSAGES, ERROR_MESSAGES } from '@/utils/constants';
 
 // Base API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -35,13 +36,24 @@ api.interceptors.response.use(
     if (error.response) {
       // Server responded with error status
       const apiError = error.response.data;
-      throw new Error(apiError?.error || 'An error occurred');
+      const errorCode = apiError?.code || 'UNKNOWN_ERROR';
+      
+      // Check for rate limit headers
+      if (error.response.status === 429) {
+        const retryAfter = error.response.headers['retry-after'];
+        const message = ERROR_CODE_MESSAGES[errorCode] || ERROR_MESSAGES.RATE_LIMIT_EXCEEDED;
+        throw new Error(retryAfter ? `${message} (Retry after ${retryAfter} seconds)` : message);
+      }
+      
+      // Use user-friendly message if available
+      const userMessage = ERROR_CODE_MESSAGES[errorCode] || apiError?.error || ERROR_MESSAGES.UNKNOWN_ERROR;
+      throw new Error(userMessage);
     } else if (error.request) {
       // Request made but no response
-      throw new Error('Network error: Could not reach server');
+      throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
     } else {
       // Something else happened
-      throw new Error(error.message || 'An unexpected error occurred');
+      throw new Error(error.message || ERROR_MESSAGES.UNKNOWN_ERROR);
     }
   }
 );

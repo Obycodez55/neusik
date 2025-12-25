@@ -8,6 +8,7 @@ import { upload, isVideoFile } from '../utils/upload';
 import { separationQueue, getJobStatus, getJob } from '../services/queue';
 import { ensureDirectoryExists, generateOutputDirName, cleanupFile } from '../utils/storage';
 import { ValidationError, NotFoundError, formatErrorResponse, getStatusCode, logError } from '../utils/errors';
+import { uploadLimiter, statusLimiter } from '../middleware/rateLimit';
 import { SeparationJobData } from '../types/jobs';
 
 const router = Router();
@@ -16,7 +17,7 @@ const router = Router();
  * POST /api/separation/process
  * Queue an audio separation job
  */
-router.post('/process', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/process', uploadLimiter, upload.single('audio'), async (req: Request, res: Response) => {
   let inputFilePath: string | undefined;
 
   try {
@@ -85,7 +86,7 @@ router.post('/process', upload.single('audio'), async (req: Request, res: Respon
  * GET /api/separation/status/:jobId
  * Get job status and progress
  */
-router.get('/status/:jobId', async (req: Request, res: Response) => {
+router.get('/status/:jobId', statusLimiter, async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
 

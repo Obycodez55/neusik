@@ -67,7 +67,31 @@ export const ERROR_MESSAGES = {
   PROCESSING_FAILED: 'Audio processing failed. Please try again',
   NETWORK_ERROR: 'Network error. Please check your connection',
   UNKNOWN_ERROR: 'An unexpected error occurred',
+  RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a moment and try again',
+  UPLOAD_RATE_LIMIT_EXCEEDED: 'Too many file uploads. Please wait before uploading another file',
+  STATUS_RATE_LIMIT_EXCEEDED: 'Too many status checks. Please wait a moment',
+  TIMEOUT_ERROR: 'Request timed out. Please try again',
+  SERVICE_UNAVAILABLE: 'Service temporarily unavailable. Please try again later',
+  FILE_UPLOAD_ERROR: 'Failed to upload file. Please check your file and try again',
+  VALIDATION_ERROR: 'Invalid request. Please check your input',
+  NOT_FOUND: 'Resource not found',
 } as const;
+
+/**
+ * Map error codes to user-friendly messages
+ */
+export const ERROR_CODE_MESSAGES: Record<string, string> = {
+  RATE_LIMIT_EXCEEDED: ERROR_MESSAGES.RATE_LIMIT_EXCEEDED,
+  UPLOAD_RATE_LIMIT_EXCEEDED: ERROR_MESSAGES.UPLOAD_RATE_LIMIT_EXCEEDED,
+  STATUS_RATE_LIMIT_EXCEEDED: ERROR_MESSAGES.STATUS_RATE_LIMIT_EXCEEDED,
+  TIMEOUT_ERROR: ERROR_MESSAGES.TIMEOUT_ERROR,
+  SERVICE_UNAVAILABLE: ERROR_MESSAGES.SERVICE_UNAVAILABLE,
+  FILE_UPLOAD_ERROR: ERROR_MESSAGES.FILE_UPLOAD_ERROR,
+  VALIDATION_ERROR: ERROR_MESSAGES.VALIDATION_ERROR,
+  NOT_FOUND: ERROR_MESSAGES.NOT_FOUND,
+  PROCESSING_ERROR: ERROR_MESSAGES.PROCESSING_FAILED,
+  INTERNAL_ERROR: ERROR_MESSAGES.UNKNOWN_ERROR,
+};
 
 // Job status labels
 export const JOB_STATUS_LABELS: Record<string, string> = {
