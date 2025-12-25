@@ -20,6 +20,8 @@ const api = axios.create({
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    // Bypass ngrok browser warning for API calls
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -35,10 +37,25 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Check if response is HTML (ngrok warning page)
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('text/html') || (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>'))) {
+      console.error('[API] Received HTML response instead of JSON. This is likely ngrok browser warning.');
+      throw new Error('Received HTML response. This may be due to ngrok browser warning. Please check ngrok configuration or use ngrok-skip-browser-warning header.');
+    }
+    return response;
+  },
   (error: AxiosError<ApiError>) => {
     // Handle common errors
     if (error.response) {
+      // Check if response is HTML (ngrok warning page)
+      const contentType = error.response.headers['content-type'] || '';
+      if (contentType.includes('text/html') || (typeof error.response.data === 'string' && (error.response.data as string).includes('<!DOCTYPE html>'))) {
+        console.error('[API] Received HTML error response. This is likely ngrok browser warning.');
+        throw new Error('Received HTML response from server. This may be due to ngrok browser warning. Please configure ngrok to skip browser warnings.');
+      }
+      
       // Server responded with error status
       const apiError = error.response.data;
       const errorCode = apiError?.code || 'UNKNOWN_ERROR';
@@ -75,6 +92,8 @@ export async function uploadFile(file: File): Promise<JobResponse> {
     const response = await api.post<JobResponse>('/api/separation/process', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
+        // Bypass ngrok browser warning
+        'ngrok-skip-browser-warning': 'true',
       },
     });
     console.log('[API] Upload response:', response.data);
@@ -91,7 +110,18 @@ export async function uploadFile(file: File): Promise<JobResponse> {
 export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
   console.log(`[API] Getting status for job ${jobId} from ${API_BASE_URL}/api/separation/status/${jobId}`);
   try {
-    const response = await api.get<JobStatusResponse>(`/api/separation/status/${jobId}`);
+    const response = await api.get<JobStatusResponse>(`/api/separation/status/${jobId}`, {
+      headers: {
+        // Bypass ngrok browser warning
+        'ngrok-skip-browser-warning': 'true',
+      },
+    });
+    
+    // Check if response is HTML (ngrok warning page)
+    if (typeof response.data === 'string' || (response.data as any)?.includes?.('<!DOCTYPE html>')) {
+      throw new Error('Received HTML response instead of JSON. This may be due to ngrok browser warning. Please check ngrok configuration.');
+    }
+    
     console.log(`[API] Status response:`, response.data);
     return response.data;
   } catch (error) {
