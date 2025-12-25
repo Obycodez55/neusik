@@ -8,15 +8,22 @@ import { FileUploadError } from './errors';
 
 // Allowed MIME types for audio/video files
 const ALLOWED_MIME_TYPES = [
+  // Audio types
   'audio/mpeg',
   'audio/wav',
   'audio/mp4',
-  'video/mp4',
   'audio/flac',
   'audio/ogg',
   'audio/aac',
   'audio/x-m4a',
   'audio/m4a',
+  // Video types
+  'video/mp4',
+  'video/mpeg',
+  'video/quicktime', // MOV files
+  'video/x-msvideo', // AVI files
+  'video/webm',
+  'video/x-matroska', // MKV files
 ];
 
 // Maximum file size (default 100MB)
@@ -59,6 +66,54 @@ export const upload = multer({
     fileSize: MAX_FILE_SIZE_BYTES,
   },
 });
+
+/**
+ * Check if a file is a video file based on MIME type and filename
+ */
+export function isVideoFile(mimetype: string, filename: string): boolean {
+  const videoMimeTypes = [
+    'video/mp4',
+    'video/mpeg',
+    'video/quicktime',
+    'video/x-msvideo',
+    'video/webm',
+    'video/x-matroska',
+  ];
+  
+  if (videoMimeTypes.includes(mimetype)) {
+    return true;
+  }
+  
+  // Fallback: check file extension
+  const ext = path.extname(filename).toLowerCase();
+  const videoExtensions = ['.mp4', '.mpeg', '.mpg', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv'];
+  return videoExtensions.includes(ext);
+}
+
+/**
+ * Check if a file is an audio file based on MIME type and filename
+ */
+export function isAudioFile(mimetype: string, filename: string): boolean {
+  const audioMimeTypes = [
+    'audio/mpeg',
+    'audio/wav',
+    'audio/mp4',
+    'audio/flac',
+    'audio/ogg',
+    'audio/aac',
+    'audio/x-m4a',
+    'audio/m4a',
+  ];
+  
+  if (audioMimeTypes.includes(mimetype)) {
+    return true;
+  }
+  
+  // Fallback: check file extension
+  const ext = path.extname(filename).toLowerCase();
+  const audioExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac'];
+  return audioExtensions.includes(ext);
+}
 
 // Export configuration constants
 export const UPLOAD_CONFIG = {

@@ -28,6 +28,10 @@ export const SUPPORTED_AUDIO_TYPES = [
 export const SUPPORTED_VIDEO_TYPES = [
   'video/mp4',
   'video/mpeg',
+  'video/quicktime', // MOV files
+  'video/x-msvideo', // AVI files
+  'video/webm',
+  'video/x-matroska', // MKV files
 ];
 
 export const SUPPORTED_FILE_TYPES = [
@@ -37,20 +41,28 @@ export const SUPPORTED_FILE_TYPES = [
 
 // File extensions
 export const SUPPORTED_EXTENSIONS = [
+  // Audio extensions
   '.mp3',
   '.wav',
   '.m4a',
   '.flac',
   '.ogg',
   '.aac',
+  // Video extensions
   '.mp4',
+  '.mpeg',
+  '.mpg',
+  '.mov',
+  '.avi',
+  '.webm',
+  '.mkv',
 ];
 
 // Error messages
 export const ERROR_MESSAGES = {
   NO_FILE: 'Please select a file to upload',
   FILE_TOO_LARGE: `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB`,
-  INVALID_FILE_TYPE: 'Invalid file type. Please upload an audio or video file',
+  INVALID_FILE_TYPE: 'Invalid file type. Please upload an audio file (MP3, WAV, M4A, etc.) or video file (MP4, MOV, AVI, etc.)',
   UPLOAD_FAILED: 'Failed to upload file. Please try again',
   PROCESSING_FAILED: 'Audio processing failed. Please try again',
   NETWORK_ERROR: 'Network error. Please check your connection',

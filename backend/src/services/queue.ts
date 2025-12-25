@@ -6,6 +6,8 @@ import { Queue, Worker, Job } from 'bullmq';
 import { redis } from '../utils/redis';
 import { separateAudio } from './processor';
 import { SeparationJobData, SeparationJobResult } from '../types/jobs';
+import { detectMediaType } from '../utils/storage';
+import { isVideoFileByExtension } from './video-extractor';
 
 // Queue configuration
 const QUEUE_NAME = 'audio-separation';
@@ -80,12 +82,27 @@ async function processWithProgress(
   inputPath: string,
   outputDir: string
 ): Promise<SeparationJobResult> {
-  // Update progress: File validated, starting processing
+  // Detect if file is video
+  const isVideo = isVideoFileByExtension(inputPath) || 
+                  (await detectMediaType(inputPath)) === 'video';
+  
+  // Update progress: File validated
+  await job.updateProgress(10);
+  
+  // If video, extraction will happen in separateAudio, update progress
+  if (isVideo) {
+    await job.updateProgress(15); // Video extraction starting
+    // Note: Actual extraction happens in separateAudio function
+    // Progress will be updated after extraction completes
+  }
+  
+  // Update progress: Starting audio processing
   await job.updateProgress(20);
 
   // Start processing (this is async, but we can't get real-time progress from Python)
   // We'll simulate progress updates based on estimated time
-  const processingPromise = separateAudio(inputPath, outputDir);
+  // Pass isVideo flag to separateAudio
+  const processingPromise = separateAudio(inputPath, outputDir, isVideo);
 
   // Simulate progress updates (since Python script doesn't provide real-time progress)
   const progressInterval = setInterval(async () => {

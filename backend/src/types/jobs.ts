@@ -14,6 +14,8 @@ export interface SeparationJobData {
   userId?: string; // For future user accounts
   createdAt: number;
   originalFilename?: string;
+  fileType?: 'audio' | 'video';
+  extractedAudioPath?: string; // Path to extracted audio if original was video
 }
 
 /**

@@ -4,8 +4,9 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
-import { resolveProjectPath } from '../utils/storage';
+import { resolveProjectPath, detectMediaType, getTempAudioPath, cleanupFile } from '../utils/storage';
 import { ProcessingError } from '../utils/errors';
+import { extractAudioFromVideo, isVideoFileByExtension } from './video-extractor';
 
 export interface ProcessingResult {
   status: 'success' | 'error';
@@ -27,14 +28,78 @@ export interface ProcessingResult {
   message?: string;
   error_type?: string;
   warnings?: string[];
+  originalFileType?: 'audio' | 'video';
+}
+
+/**
+ * Detect file type (audio or video)
+ */
+async function detectFileType(filePath: string): Promise<'audio' | 'video'> {
+  // First check by extension (fast)
+  if (isVideoFileByExtension(filePath)) {
+    return 'video';
+  }
+  
+  // Use storage utility for detection
+  return detectMediaType(filePath);
+}
+
+/**
+ * Process audio file using Python separation script
+ * Handles both audio and video files (extracts audio from video first)
+ */
+export async function separateAudio(
+  inputPath: string,
+  outputDir: string,
+  isVideo?: boolean
+): Promise<ProcessingResult> {
+  let actualInputPath = inputPath;
+  let extractedAudioPath: string | undefined;
+  let fileType: 'audio' | 'video' = 'audio';
+  
+  try {
+    // Detect file type if not provided
+    if (isVideo === undefined) {
+      fileType = await detectFileType(inputPath);
+    } else {
+      fileType = isVideo ? 'video' : 'audio';
+    }
+    
+    // If video, extract audio first
+    if (fileType === 'video') {
+      extractedAudioPath = getTempAudioPath(inputPath);
+      
+      try {
+        const extractionResult = await extractAudioFromVideo(inputPath, extractedAudioPath);
+        actualInputPath = extractionResult.audioPath;
+      } catch (error) {
+        // Clean up on extraction failure
+        if (extractedAudioPath) {
+          await cleanupFile(extractedAudioPath).catch(() => {});
+        }
+        throw error;
+      }
+    }
+    
+    // Process the audio file (either original or extracted)
+    return await processAudioFile(actualInputPath, outputDir, fileType);
+  } finally {
+    // Clean up extracted audio file after processing
+    if (extractedAudioPath) {
+      await cleanupFile(extractedAudioPath).catch((err) => {
+        console.error('Failed to cleanup extracted audio file:', err);
+      });
+    }
+  }
 }
 
 /**
  * Process audio file using Python separation script
  */
-export async function separateAudio(
+async function processAudioFile(
   inputPath: string,
-  outputDir: string
+  outputDir: string,
+  originalFileType: 'audio' | 'video'
 ): Promise<ProcessingResult> {
   return new Promise((resolve, reject) => {
     // Resolve Python script path relative to project root
@@ -64,6 +129,9 @@ export async function separateAudio(
         try {
           // Parse JSON output from Python script
           const result: ProcessingResult = JSON.parse(output.trim());
+          
+          // Add original file type to result
+          result.originalFileType = originalFileType;
 
           if (result.status === 'success') {
             resolve(result);

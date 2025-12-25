@@ -4,7 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import path from 'path';
-import { upload } from '../utils/upload';
+import { upload, isVideoFile } from '../utils/upload';
 import { separationQueue, getJobStatus, getJob } from '../services/queue';
 import { ensureDirectoryExists, generateOutputDirName, cleanupFile } from '../utils/storage';
 import { ValidationError, NotFoundError, formatErrorResponse, getStatusCode, logError } from '../utils/errors';
@@ -36,6 +36,9 @@ router.post('/process', upload.single('audio'), async (req: Request, res: Respon
       );
     }
 
+    // Detect file type (audio or video)
+    const fileType = isVideoFile(req.file.mimetype, req.file.originalname) ? 'video' : 'audio';
+
     // Create unique output directory
     const outputBaseDir = process.env.OUTPUT_DIR || 'outputs';
     await ensureDirectoryExists(outputBaseDir);
@@ -49,6 +52,7 @@ router.post('/process', upload.single('audio'), async (req: Request, res: Respon
       jobId,
       createdAt: Date.now(),
       originalFilename: req.file.originalname,
+      fileType,
     };
 
     // Add job to queue

@@ -19,7 +19,12 @@ from demucs.separate import main as separate_main
 # Configuration constants
 MAX_FILE_SIZE_MB = 500
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-SUPPORTED_FORMATS = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.m4a', '.mp4'}
+SUPPORTED_FORMATS = {
+    # Audio formats
+    '.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac',
+    # Video formats (audio will be extracted before processing)
+    '.mp4', '.mpeg', '.mpg', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv'
+}
 DEMUCS_MODEL = 'htdemucs'
 OUTPUT_BITRATE = '256'
 
@@ -75,6 +80,23 @@ def get_file_format(file_path: Path) -> Optional[str]:
     if ext in SUPPORTED_FORMATS:
         return ext.lstrip('.')
     return None
+
+
+def is_video_file(file_path: Path) -> bool:
+    """
+    Check if file is a video file based on extension.
+    
+    Note: Video files should have audio extracted before reaching this script.
+    This function is mainly for validation purposes.
+    
+    Args:
+        file_path: Path to the file
+        
+    Returns:
+        True if file appears to be a video file
+    """
+    video_extensions = {'.mp4', '.mpeg', '.mpg', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv'}
+    return file_path.suffix.lower() in video_extensions
 
 
 def validate_input_file(input_path: str) -> Tuple[Path, Dict]:
