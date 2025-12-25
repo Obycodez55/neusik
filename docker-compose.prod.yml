@@ -1,0 +1,57 @@
+services:
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: always
+    command: redis-server --appendonly yes
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      - UPLOAD_DIR=uploads
+      - OUTPUT_DIR=outputs
+      - PYTHON_PATH=python3
+      - MAX_FILE_SIZE_MB=100
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./python-worker:/app/python-worker
+      - backend-uploads:/app/uploads
+      - backend-outputs:/app/outputs
+    restart: always
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  redis-data:
+  backend-uploads:
+  backend-outputs:
+
