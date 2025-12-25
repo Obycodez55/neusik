@@ -1,23 +1,23 @@
 /**
- * Audio separation API routes
+ * Audio separation API routes with job queue
  */
 
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import { upload } from '../utils/upload';
-import { separateAudio } from '../services/processor';
+import { separationQueue, getJobStatus, getJob } from '../services/queue';
 import { ensureDirectoryExists, generateOutputDirName, cleanupFile } from '../utils/storage';
-import { ValidationError, ProcessingError, formatErrorResponse, getStatusCode, logError } from '../utils/errors';
+import { ValidationError, NotFoundError, formatErrorResponse, getStatusCode, logError } from '../utils/errors';
+import { SeparationJobData } from '../types/jobs';
 
 const router = Router();
 
 /**
  * POST /api/separation/process
- * Process audio file to separate vocals
+ * Queue an audio separation job
  */
 router.post('/process', upload.single('audio'), async (req: Request, res: Response) => {
   let inputFilePath: string | undefined;
-  let outputDir: string | undefined;
 
   try {
     // Validate file upload
@@ -39,42 +39,32 @@ router.post('/process', upload.single('audio'), async (req: Request, res: Respon
     // Create unique output directory
     const outputBaseDir = process.env.OUTPUT_DIR || 'outputs';
     await ensureDirectoryExists(outputBaseDir);
-    outputDir = path.join(outputBaseDir, generateOutputDirName());
+    const jobId = generateOutputDirName();
+    const outputDir = path.join(outputBaseDir, jobId);
 
-    // Process audio
-    const result = await separateAudio(inputFilePath, outputDir);
+    // Create job data
+    const jobData: SeparationJobData = {
+      inputPath: inputFilePath,
+      outputDir,
+      jobId,
+      createdAt: Date.now(),
+      originalFilename: req.file.originalname,
+    };
 
-    if (result.status === 'success' && result.output) {
-      const outputPath = result.output.path;
+    // Add job to queue
+    const job = await separationQueue.add(jobId, jobData, {
+      jobId, // Use custom job ID
+    });
 
-      // Send file for download
-      res.download(outputPath, 'vocals.mp3', async (err) => {
-        // Clean up files after download
-        if (inputFilePath) {
-          await cleanupFile(inputFilePath).catch(console.error);
-        }
-        // Clean up output directory (optional - could keep for a period)
-        // await cleanupFile(outputPath).catch(console.error);
-
-        if (err) {
-          console.error('Download error:', err);
-        }
-      });
-    } else {
-      // Clean up input file on error
-      if (inputFilePath) {
-        await cleanupFile(inputFilePath).catch(console.error);
-      }
-
-      throw new ProcessingError(
-        result.message || 'Audio processing failed',
-        {
-          error_type: result.error_type,
-        }
-      );
-    }
+    // Return job information immediately
+    res.status(202).json({
+      jobId: job.id,
+      status: 'queued',
+      statusUrl: `/api/separation/status/${job.id}`,
+      downloadUrl: `/api/separation/download/${job.id}`,
+    });
   } catch (error) {
-    // Clean up files on error
+    // Clean up file on error
     if (inputFilePath) {
       await cleanupFile(inputFilePath).catch(console.error);
     }
@@ -87,5 +77,83 @@ router.post('/process', upload.single('audio'), async (req: Request, res: Respon
   }
 });
 
-export default router;
+/**
+ * GET /api/separation/status/:jobId
+ * Get job status and progress
+ */
+router.get('/status/:jobId', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
 
+    const status = await getJobStatus(jobId);
+
+    res.json({
+      jobId,
+      status: status.status,
+      progress: status.progress,
+      result: status.result,
+      error: status.error,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Job not found') {
+      throw new NotFoundError('Job not found');
+    }
+
+    logError(error, { endpoint: '/api/separation/status', jobId: req.params.jobId });
+    const errorResponse = formatErrorResponse(error);
+    const statusCode = getStatusCode(error);
+
+    res.status(statusCode).json(errorResponse);
+  }
+});
+
+/**
+ * GET /api/separation/download/:jobId
+ * Download processed audio file
+ */
+router.get('/download/:jobId', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+
+    const job = await getJob(jobId);
+
+    if (!job) {
+      throw new NotFoundError('Job not found');
+    }
+
+    const state = await job.getState();
+
+    if (state !== 'completed') {
+      throw new ValidationError(`Job is not completed. Current status: ${state}`);
+    }
+
+    const result = job.returnvalue;
+
+    if (!result || result.status !== 'success' || !result.output) {
+      throw new ValidationError('Job completed but no output file available');
+    }
+
+    const outputPath = result.output.path;
+
+    // Send file for download
+    res.download(outputPath, 'vocals.mp3', (err) => {
+      if (err) {
+        console.error('Download error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: 'Failed to download file',
+            code: 'DOWNLOAD_ERROR',
+          });
+        }
+      }
+    });
+  } catch (error) {
+    logError(error, { endpoint: '/api/separation/download', jobId: req.params.jobId });
+    const errorResponse = formatErrorResponse(error);
+    const statusCode = getStatusCode(error);
+
+    res.status(statusCode).json(errorResponse);
+  }
+});
+
+export default router;

@@ -9,6 +9,10 @@ import dotenv from 'dotenv';
 import separationRoutes from './routes/separation';
 import { formatErrorResponse, getStatusCode, logError } from './utils/errors';
 import { ensureDirectoryExists } from './utils/storage';
+import { testRedisConnection, redis } from './utils/redis';
+import { getQueueStats } from './services/queue';
+// Import queue service to initialize worker
+import './services/queue';
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +27,12 @@ const outputDir = process.env.OUTPUT_DIR || 'outputs';
 (async () => {
   await ensureDirectoryExists(uploadDir);
   await ensureDirectoryExists(outputDir);
+
+  // Test Redis connection
+  const redisConnected = await testRedisConnection(redis);
+  if (!redisConnected) {
+    console.warn('⚠️  Redis connection test failed. Queue functionality may not work.');
+  }
 })();
 
 // Middleware
@@ -47,6 +57,40 @@ app.get('/', (req: Request, res: Response) => {
     message: 'Neusik API is running',
     version: '1.0.0',
   });
+});
+
+// Queue health check endpoint
+app.get('/health/queue', async (req: Request, res: Response) => {
+  try {
+    const redisConnected = await testRedisConnection(redis);
+    const stats = await getQueueStats();
+
+    res.json({
+      status: redisConnected ? 'healthy' : 'degraded',
+      redis: redisConnected ? 'connected' : 'disconnected',
+      queue: stats,
+    });
+  } catch (error) {
+    logError(error, { endpoint: '/health/queue' });
+    res.status(500).json({
+      status: 'unhealthy',
+      error: 'Failed to check queue health',
+    });
+  }
+});
+
+// Queue statistics endpoint
+app.get('/api/queue/stats', async (req: Request, res: Response) => {
+  try {
+    const stats = await getQueueStats();
+    res.json(stats);
+  } catch (error) {
+    logError(error, { endpoint: '/api/queue/stats' });
+    const errorResponse = formatErrorResponse(error);
+    const statusCode = getStatusCode(error);
+
+    res.status(statusCode).json(errorResponse);
+  }
 });
 
 // API routes
@@ -76,5 +120,5 @@ app.listen(PORT, () => {
   console.log(`📁 Upload directory: ${uploadDir}`);
   console.log(`📁 Output directory: ${outputDir}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Queue monitoring: http://localhost:${PORT}/api/queue/stats`);
 });
-
