@@ -1,0 +1,69 @@
+/**
+ * Application constants and configuration
+ */
+
+// API configuration
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+// Polling configuration
+export const POLLING_INTERVAL_MS = 2000; // Poll every 2 seconds
+export const MAX_POLLING_ATTEMPTS = 300; // Max 10 minutes (300 * 2s)
+
+// File upload configuration
+export const MAX_FILE_SIZE_MB = 100;
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+// Supported file types
+export const SUPPORTED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/mp4',
+  'audio/flac',
+  'audio/ogg',
+  'audio/aac',
+  'audio/x-m4a',
+  'audio/m4a',
+];
+
+export const SUPPORTED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/mpeg',
+];
+
+export const SUPPORTED_FILE_TYPES = [
+  ...SUPPORTED_AUDIO_TYPES,
+  ...SUPPORTED_VIDEO_TYPES,
+];
+
+// File extensions
+export const SUPPORTED_EXTENSIONS = [
+  '.mp3',
+  '.wav',
+  '.m4a',
+  '.flac',
+  '.ogg',
+  '.aac',
+  '.mp4',
+];
+
+// Error messages
+export const ERROR_MESSAGES = {
+  NO_FILE: 'Please select a file to upload',
+  FILE_TOO_LARGE: `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB`,
+  INVALID_FILE_TYPE: 'Invalid file type. Please upload an audio or video file',
+  UPLOAD_FAILED: 'Failed to upload file. Please try again',
+  PROCESSING_FAILED: 'Audio processing failed. Please try again',
+  NETWORK_ERROR: 'Network error. Please check your connection',
+  UNKNOWN_ERROR: 'An unexpected error occurred',
+} as const;
+
+// Job status labels
+export const JOB_STATUS_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  active: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
+  delayed: 'Delayed',
+  waiting: 'Waiting',
+};
+
