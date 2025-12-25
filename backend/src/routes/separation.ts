@@ -137,10 +137,34 @@ router.get('/download/:jobId', async (req: Request, res: Response) => {
       throw new ValidationError('Job completed but no output file available');
     }
 
-    const outputPath = result.output.path;
+    // If video output exists, prefer it over audio
+    const outputPath = result.videoOutput?.path || result.output.path;
+    const outputFormat = result.videoOutput?.format || result.output.format;
+    const isVideo = !!result.videoOutput;
+    
+    // Determine filename based on output type
+    const filename = `vocals.${outputFormat}`;
+
+    // Set appropriate Content-Type header
+    if (isVideo) {
+      // Set video MIME type based on format
+      const videoMimeTypes: Record<string, string> = {
+        'mp4': 'video/mp4',
+        'mpeg': 'video/mpeg',
+        'mpg': 'video/mpeg',
+        'mov': 'video/quicktime',
+        'avi': 'video/x-msvideo',
+        'webm': 'video/webm',
+        'mkv': 'video/x-matroska',
+      };
+      const contentType = videoMimeTypes[outputFormat.toLowerCase()] || 'video/mp4';
+      res.setHeader('Content-Type', contentType);
+    } else {
+      res.setHeader('Content-Type', 'audio/mpeg');
+    }
 
     // Send file for download
-    res.download(outputPath, 'vocals.mp3', (err) => {
+    res.download(outputPath, filename, (err) => {
       if (err) {
         console.error('Download error:', err);
         if (!res.headersSent) {

@@ -88,6 +88,28 @@ export function getDownloadUrl(jobId: string): string {
 }
 
 /**
+ * Create object URL for original file preview
+ */
+export function getOriginalFileUrl(file: File): string {
+  return URL.createObjectURL(file);
+}
+
+/**
+ * Revoke object URL to free memory
+ */
+export function revokeObjectUrl(url: string): void {
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Get processed file URL for preview
+ * Same as download URL but can be used for audio preview
+ */
+export function getProcessedFileUrl(jobId: string): string {
+  return getDownloadUrl(jobId);
+}
+
+/**
  * Get status URL for a job
  */
 export function getStatusUrl(jobId: string): string {

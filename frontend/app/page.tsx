@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import Container from '@/components/Layout/Container';
 import FileUpload from '@/components/Upload/FileUpload';
 import ProgressBar from '@/components/Progress/ProgressBar';
-import { uploadFile, getDownloadUrl } from '@/lib/api';
+import AudioPlayer from '@/components/Audio/AudioPlayer';
+import AudioComparison from '@/components/Audio/AudioComparison';
+import { uploadFile, getDownloadUrl, getOriginalFileUrl, revokeObjectUrl, getProcessedFileUrl } from '@/lib/api';
 import { validateFile } from '@/utils/validation';
 import { ERROR_MESSAGES } from '@/utils/constants';
-import { JobResponse, JobStatus } from '@/types';
+import { JobResponse, JobStatus, AudioMetadata } from '@/types';
 import { useJobStatus } from '@/hooks/useJobStatus';
 
 export default function Home() {
@@ -17,21 +19,39 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
+  const [processedPreviewUrl, setProcessedPreviewUrl] = useState<string | null>(null);
 
   // Use polling hook for job status
   const { status, progress, error: pollingError, result, isPolling } = useJobStatus(jobId);
+
+  // Create preview URL for original file
+  useEffect(() => {
+    if (file) {
+      const url = getOriginalFileUrl(file);
+      setOriginalPreviewUrl(url);
+      return () => {
+        revokeObjectUrl(url);
+      };
+    } else {
+      setOriginalPreviewUrl(null);
+    }
+  }, [file]);
 
   // Handle job completion
   useEffect(() => {
     if (status === 'completed' && result && jobId) {
       // Set download URL when job completes
-      setDownloadUrl(getDownloadUrl(jobId));
+      const url = getDownloadUrl(jobId);
+      setDownloadUrl(url);
+      setProcessedPreviewUrl(url);
       setError(null);
     } else if (status === 'failed') {
       // Handle job failure
       if (pollingError) {
         setError(pollingError);
       }
+      setProcessedPreviewUrl(null);
     }
   }, [status, result, jobId, pollingError]);
 
@@ -50,6 +70,7 @@ export default function Home() {
     if (selectedFile === null) {
       setJobId(null);
       setDownloadUrl(null);
+      setProcessedPreviewUrl(null);
     }
   };
 
@@ -151,10 +172,29 @@ export default function Home() {
             <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
               <p className="text-sm text-green-800 dark:text-green-200">
                 ✓ File uploaded successfully! Processing started...
-              </p>
+          </p>
             </div>
           )}
         </div>
+
+        {/* Original File Preview Section */}
+        {file && originalPreviewUrl && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+              Original File Preview
+            </h2>
+            <AudioPlayer
+              src={originalPreviewUrl}
+              title={file.name}
+              showMetadata={true}
+              metadata={{
+                name: file.name,
+                size: file.size,
+                format: file.type.split('/')[1] || file.name.split('.').pop() || 'unknown',
+              }}
+            />
+          </div>
+        )}
 
         {/* Progress Section */}
         {jobId && (
@@ -195,6 +235,49 @@ export default function Home() {
           </div>
         )}
 
+        {/* Processed File Preview Section */}
+        {processedPreviewUrl && status === 'completed' && result && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+              Processed Vocals Preview
+            </h2>
+            <AudioPlayer
+              src={processedPreviewUrl}
+              title="Isolated Vocals"
+              showMetadata={true}
+              metadata={{
+                name: 'vocals',
+                size: result.output?.size,
+                format: result.output?.format || 'mp3',
+              }}
+            />
+          </div>
+        )}
+
+        {/* Audio Comparison Section */}
+        {originalPreviewUrl && processedPreviewUrl && status === 'completed' && result && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mb-6">
+            <AudioComparison
+              original={{
+                src: originalPreviewUrl,
+                metadata: {
+                  name: file?.name,
+                  size: file?.size,
+                  format: file?.type.split('/')[1] || file?.name.split('.').pop() || 'unknown',
+                },
+              }}
+              processed={{
+                src: processedPreviewUrl,
+                metadata: {
+                  name: 'vocals',
+                  size: result.output?.size,
+                  format: result.output?.format || 'mp3',
+                },
+              }}
+            />
+          </div>
+        )}
+
         {/* Download Section */}
         {downloadUrl && status === 'completed' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
@@ -203,8 +286,8 @@ export default function Home() {
             </h2>
             <a
               href={downloadUrl}
-              download="vocals.mp3"
-              className="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors flex items-center justify-center gap-2"
+              download={result?.videoOutput ? `vocals.${result.videoOutput.format}` : 'vocals.mp3'}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors flex items-center justify-center gap-2"
             >
               <svg
                 className="w-5 h-5"
@@ -219,11 +302,11 @@ export default function Home() {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
               </svg>
-              Download Isolated Vocals
+              Download {result?.videoOutput ? 'Video' : 'Isolated Vocals'}
             </a>
-            {result?.output && (
+            {(result?.output || result?.videoOutput) && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 text-center">
-                File size: {Math.round((result.output.size || 0) / 1024 / 1024 * 100) / 100} MB
+                File size: {Math.round(((result.output?.size || result.videoOutput?.size || 0) / 1024 / 1024) * 100) / 100} MB
               </p>
             )}
           </div>
@@ -249,9 +332,9 @@ export default function Home() {
                 <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
               </div>
             </div>
-          </div>
+        </div>
         )}
-      </div>
+    </div>
     </Container>
   );
 }

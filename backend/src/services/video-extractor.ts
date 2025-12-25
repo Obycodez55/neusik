@@ -146,6 +146,118 @@ export async function extractAudioFromVideo(
 }
 
 /**
+ * Merge processed audio back into original video file
+ * 
+ * @param videoPath - Path to original video file
+ * @param audioPath - Path to processed audio file (vocals)
+ * @param outputPath - Path where final video will be saved
+ * @returns Promise resolving to reconstruction result
+ * @throws ProcessingError if reconstruction fails
+ */
+export async function mergeAudioIntoVideo(
+  videoPath: string,
+  audioPath: string,
+  outputPath: string
+): Promise<ExtractionResult> {
+  const ffmpegAvailable = await checkFFmpegAvailable();
+  if (!ffmpegAvailable) {
+    throw new ProcessingError('FFmpeg is not available. Video reconstruction cannot be performed.', {
+      error_type: 'FFMPEG_NOT_FOUND',
+    });
+  }
+
+  // Ensure output directory exists
+  const outputDir = path.dirname(outputPath);
+  await fs.mkdir(outputDir, { recursive: true });
+
+  return new Promise((resolve, reject) => {
+    // FFmpeg command to merge audio into video:
+    // -i video: input video file
+    // -i audio: input audio file (processed vocals)
+    // -c:v copy: copy video stream without re-encoding (faster)
+    // -c:a aac: encode audio as AAC (widely compatible)
+    // -map 0:v:0: use video from first input
+    // -map 1:a:0: use audio from second input
+    // -shortest: finish encoding when shortest input ends
+    // -y: overwrite output file
+    const ffmpeg = spawn('ffmpeg', [
+      '-i', videoPath,
+      '-i', audioPath,
+      '-c:v', 'copy', // Copy video stream (no re-encoding)
+      '-c:a', 'aac', // Encode audio as AAC
+      '-b:a', '256k', // Audio bitrate
+      '-map', '0:v:0', // Use video from first input
+      '-map', '1:a:0', // Use audio from second input
+      '-shortest', // Finish when shortest stream ends
+      '-y', // Overwrite output
+      '-loglevel', 'error',
+      outputPath,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let errorOutput = '';
+    let standardOutput = '';
+
+    ffmpeg.stdout.on('data', (data) => {
+      standardOutput += data.toString();
+    });
+
+    ffmpeg.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+
+    ffmpeg.on('close', async (code) => {
+      if (code === 0) {
+        try {
+          const stats = await fs.stat(outputPath);
+          if (stats.size === 0) {
+            await fs.unlink(outputPath).catch(() => {});
+            reject(
+              new ProcessingError('Reconstructed video file is empty', {
+                error_type: 'RECONSTRUCTION_FAILED',
+                ffmpeg_stderr: errorOutput,
+              })
+            );
+            return;
+          }
+
+          resolve({
+            audioPath: outputPath, // Reusing interface, but this is actually video path
+          });
+        } catch (error) {
+          reject(
+            new ProcessingError('Reconstructed video file not found', {
+              error_type: 'RECONSTRUCTION_FAILED',
+              ffmpeg_stderr: errorOutput,
+              file_error: error instanceof Error ? error.message : String(error),
+            })
+          );
+        }
+      } else {
+        reject(
+          new ProcessingError('Failed to merge audio into video', {
+            error_type: 'RECONSTRUCTION_FAILED',
+            exit_code: code,
+            ffmpeg_stderr: errorOutput,
+            ffmpeg_stdout: standardOutput,
+          })
+        );
+      }
+    });
+
+    ffmpeg.on('error', (error) => {
+      reject(
+        new ProcessingError('Failed to spawn FFmpeg process for video reconstruction', {
+          error_type: 'FFMPEG_SPAWN_ERROR',
+          error: error.message,
+        })
+      );
+    });
+  });
+}
+
+/**
  * Detect if a file is a video file based on extension
  */
 export function isVideoFileByExtension(filePath: string): boolean {

@@ -33,6 +33,11 @@ export interface ProcessingResult {
     size: number;
     format: string;
   };
+  videoOutput?: {
+    path: string;
+    size: number;
+    format: string;
+  };
   processing?: {
     time_seconds: number;
     model: string;
@@ -40,6 +45,7 @@ export interface ProcessingResult {
   message?: string;
   error_type?: string;
   warnings?: string[];
+  originalFileType?: 'audio' | 'video';
 }
 
 /**
@@ -60,5 +66,26 @@ export interface ApiError {
   error: string;
   code: string;
   details?: Record<string, unknown>;
+}
+
+/**
+ * Audio metadata for preview
+ */
+export interface AudioMetadata {
+  name?: string;
+  size?: number;
+  format?: string;
+  duration?: number;
+}
+
+/**
+ * Audio player props
+ */
+export interface AudioPlayerProps {
+  src: string | File | null;
+  title?: string;
+  showMetadata?: boolean;
+  metadata?: AudioMetadata;
+  className?: string;
 }
 

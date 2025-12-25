@@ -4,9 +4,9 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
-import { resolveProjectPath, detectMediaType, getTempAudioPath, cleanupFile } from '../utils/storage';
+import { resolveProjectPath, detectMediaType, getTempAudioPath, cleanupFile, getFileInfo } from '../utils/storage';
 import { ProcessingError } from '../utils/errors';
-import { extractAudioFromVideo, isVideoFileByExtension } from './video-extractor';
+import { extractAudioFromVideo, isVideoFileByExtension, mergeAudioIntoVideo } from './video-extractor';
 
 export interface ProcessingResult {
   status: 'success' | 'error';
@@ -17,6 +17,11 @@ export interface ProcessingResult {
     format: string;
   };
   output?: {
+    path: string;
+    size: number;
+    format: string;
+  };
+  videoOutput?: {
     path: string;
     size: number;
     format: string;
@@ -56,6 +61,7 @@ export async function separateAudio(
   let actualInputPath = inputPath;
   let extractedAudioPath: string | undefined;
   let fileType: 'audio' | 'video' = 'audio';
+  const originalVideoPath = inputPath; // Store original video path
   
   try {
     // Detect file type if not provided
@@ -82,7 +88,35 @@ export async function separateAudio(
     }
     
     // Process the audio file (either original or extracted)
-    return await processAudioFile(actualInputPath, outputDir, fileType);
+    const result = await processAudioFile(actualInputPath, outputDir, fileType);
+    
+    // If original was video, merge processed audio back into video
+    if (fileType === 'video' && result.status === 'success' && result.output) {
+      // Generate output video path (same extension as original)
+      const videoExt = path.extname(originalVideoPath);
+      const videoOutputPath = path.join(outputDir, `vocals${videoExt}`);
+      
+      try {
+        // Merge processed vocals into original video
+        await mergeAudioIntoVideo(originalVideoPath, result.output.path, videoOutputPath);
+        
+        // Get video file info
+        const videoInfo = await getFileInfo(videoOutputPath);
+        
+        // Add video output to result
+        result.videoOutput = {
+          path: videoOutputPath,
+          size: videoInfo.size,
+          format: videoExt.substring(1), // Remove the dot
+        };
+      } catch (error) {
+        console.error('Failed to merge audio into video:', error);
+        // Don't fail the whole job, just log the error
+        // The audio file is still available
+      }
+    }
+    
+    return result;
   } finally {
     // Clean up extracted audio file after processing
     if (extractedAudioPath) {
