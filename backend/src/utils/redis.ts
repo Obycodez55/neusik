@@ -11,7 +11,7 @@ export function createRedisConnection(): Redis {
   // Use REDIS_URL if provided, otherwise use individual config
   if (process.env.REDIS_URL) {
     return new Redis(process.env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null, // Required by BullMQ
       retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
@@ -23,7 +23,7 @@ export function createRedisConnection(): Redis {
   const config: RedisOptions = {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: null, // Required by BullMQ
     retryStrategy: (times: number) => {
       const delay = Math.min(times * 50, 2000);
       return delay;

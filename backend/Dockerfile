@@ -15,6 +15,14 @@ COPY package*.json ./
 # Install all dependencies (including dev for build)
 RUN npm ci
 
+# Copy Python requirements first (for better caching)
+# Note: python-requirements.txt should be kept in sync with ../python-worker/requirements.txt
+COPY python-requirements.txt /tmp/python-requirements.txt
+
+# Install Python dependencies for audio processing
+RUN pip3 install --break-system-packages --no-cache-dir -r /tmp/python-requirements.txt && \
+    rm /tmp/python-requirements.txt
+
 # Copy source code
 COPY . .
 
@@ -23,11 +31,6 @@ RUN npm run build
 
 # Remove dev dependencies after build
 RUN npm prune --production
-
-# Install Python dependencies for audio processing
-# Note: python-worker is mounted as volume in docker-compose.yml
-# Dependencies are installed at runtime via: docker-compose exec backend pip3 install --break-system-packages -r /app/python-worker/requirements.txt
-# For production, consider copying requirements.txt into the image during build
 
 # Create directories for uploads and outputs
 RUN mkdir -p uploads outputs
