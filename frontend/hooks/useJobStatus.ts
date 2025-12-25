@@ -134,7 +134,7 @@ export function useJobStatus(jobId: string | null): UseJobStatusReturn {
       }
       setIsPolling(false);
     };
-  }, [jobId, error]);
+  }, [jobId]); // Removed 'error' from dependencies to prevent re-creating intervals
 
   return {
     status,

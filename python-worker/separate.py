@@ -10,8 +10,10 @@ import os
 import time
 import logging
 import shutil
+import contextlib
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+from io import StringIO
 from demucs.separate import main as separate_main
 
 # Configuration constants
@@ -199,14 +201,21 @@ def process_audio(input_path: str, output_dir: str) -> Dict:
         # --two-stems vocals: Extract only vocals
         # --mp3: Output as MP3 format
         # --mp3-bitrate 256: Set bitrate to 256 kbps
+        # Redirect stdout to stderr to prevent mixing with JSON output
         try:
-            separate_main([
-                str(input_file),
-                '-o', str(output_path),
-                '--two-stems', 'vocals',
-                '--mp3',
-                '--mp3-bitrate', OUTPUT_BITRATE
-            ])
+            # Capture stdout and redirect to stderr so JSON output stays clean
+            original_stdout = sys.stdout
+            sys.stdout = sys.stderr
+            try:
+                separate_main([
+                    str(input_file),
+                    '-o', str(output_path),
+                    '--two-stems', 'vocals',
+                    '--mp3',
+                    '--mp3-bitrate', OUTPUT_BITRATE
+                ])
+            finally:
+                sys.stdout = original_stdout
         except Exception as e:
             raise ProcessingError(f'Demucs processing failed: {str(e)}')
         

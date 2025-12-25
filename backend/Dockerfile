@@ -25,11 +25,9 @@ RUN npm run build
 RUN npm prune --production
 
 # Install Python dependencies for audio processing
-# Note: In docker-compose, python-worker is mounted as volume
-# For production builds, copy requirements.txt from python-worker directory
-# Example: COPY ../python-worker/requirements.txt /tmp/requirements.txt
-# RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
-# For now, dependencies should be installed manually or via docker-compose setup
+# Note: python-worker is mounted as volume in docker-compose.yml
+# Dependencies are installed at runtime via: docker-compose exec backend pip3 install --break-system-packages -r /app/python-worker/requirements.txt
+# For production, consider copying requirements.txt into the image during build
 
 # Create directories for uploads and outputs
 RUN mkdir -p uploads outputs
