@@ -11,7 +11,6 @@ import { formatErrorResponse, getStatusCode, logError } from './utils/errors';
 import { ensureDirectoryExists } from './utils/storage';
 import { testRedisConnection, redis } from './utils/redis';
 import { getQueueStats } from './services/queue';
-import { apiLimiter, uploadLimiter, statusLimiter } from './middleware/rateLimit';
 // Import queue service to initialize worker
 import './services/queue';
 
@@ -20,6 +19,9 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Trust proxy (required when behind a proxy like ngrok)
+app.set('trust proxy', true);
 
 // Ensure upload and output directories exist
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
@@ -44,9 +46,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Apply general API rate limiting
-app.use('/api', apiLimiter);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
