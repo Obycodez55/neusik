@@ -26,6 +26,15 @@ export default function Home() {
   // Use polling hook for job status
   const { status, progress, error: pollingError, result, isPolling } = useJobStatus(jobId);
 
+  // Debug: Log when jobId changes
+  useEffect(() => {
+    if (jobId) {
+      console.log('[Page] JobId set, polling should start:', jobId);
+    } else {
+      console.log('[Page] JobId cleared');
+    }
+  }, [jobId]);
+
   // Create preview URL for original file
   useEffect(() => {
     if (file) {
@@ -94,11 +103,19 @@ export default function Home() {
     setDownloadUrl(null);
 
     try {
+      console.log('[Upload] Starting file upload...');
       const response: JobResponse = await uploadFile(file);
+      console.log('[Upload] Upload response:', response);
       
       // Store job information
-      setJobId(response.jobId);
-      setUploadSuccess(true);
+      if (response.jobId) {
+        console.log('[Upload] Job ID received:', response.jobId);
+        setJobId(response.jobId);
+        setUploadSuccess(true);
+      } else {
+        console.error('[Upload] No jobId in response:', response);
+        setError('Upload succeeded but no job ID received');
+      }
       
     } catch (err: unknown) {
       // Handle different error types

@@ -9,6 +9,11 @@ import { ERROR_CODE_MESSAGES, ERROR_MESSAGES } from '@/utils/constants';
 // Base API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+// Log API URL for debugging (only in development)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('[API] API_BASE_URL:', API_BASE_URL);
+}
+
 // Create axios instance with defaults
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -62,24 +67,37 @@ api.interceptors.response.use(
  * Upload audio file and queue separation job
  */
 export async function uploadFile(file: File): Promise<JobResponse> {
+  console.log(`[API] Uploading file to ${API_BASE_URL}/api/separation/process`);
   const formData = new FormData();
   formData.append('audio', file);
 
-  const response = await api.post<JobResponse>('/api/separation/process', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-
-  return response.data;
+  try {
+    const response = await api.post<JobResponse>('/api/separation/process', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    console.log('[API] Upload response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[API] Upload error:', error);
+    throw error;
+  }
 }
 
 /**
  * Get job status and progress
  */
 export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
-  const response = await api.get<JobStatusResponse>(`/api/separation/status/${jobId}`);
-  return response.data;
+  console.log(`[API] Getting status for job ${jobId} from ${API_BASE_URL}/api/separation/status/${jobId}`);
+  try {
+    const response = await api.get<JobStatusResponse>(`/api/separation/status/${jobId}`);
+    console.log(`[API] Status response:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting status for job ${jobId}:`, error);
+    throw error;
+  }
 }
 
 /**

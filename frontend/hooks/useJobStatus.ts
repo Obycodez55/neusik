@@ -71,7 +71,9 @@ export function useJobStatus(jobId: string | null): UseJobStatusReturn {
 
       try {
         attemptsRef.current += 1;
+        console.log(`[Polling] Attempt ${attemptsRef.current}: Checking status for job ${jobId}`);
         const response: JobStatusResponse = await getJobStatus(jobId);
+        console.log(`[Polling] Response received:`, { status: response.status, progress: response.progress });
 
         if (!isMountedRef.current) return;
 
@@ -108,13 +110,14 @@ export function useJobStatus(jobId: string | null): UseJobStatusReturn {
 
         // Handle network errors
         if (err instanceof Error) {
+          console.error(`[Polling] Error on attempt ${attemptsRef.current}:`, err.message, err);
           // Don't stop polling on network errors, just log
-          console.error('Polling error:', err.message);
           // Only set error if we've tried multiple times
-          if (attemptsRef.current >= 5) {
-            setError('Unable to check job status. Please refresh the page.');
+          if (attemptsRef.current >= 3) {
+            setError(`Unable to check job status: ${err.message}. Please check your connection.`);
           }
         } else {
+          console.error('[Polling] Unexpected error:', err);
           setError('An unexpected error occurred while checking job status.');
         }
       }
